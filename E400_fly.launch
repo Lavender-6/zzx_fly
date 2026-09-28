@@ -1,0 +1,39 @@
+<launch>
+    <!-- ==========================================================
+         E400-T 起飞完整节点 = T265 定位 + MAVROS 飞控 + 位姿桥接
+
+         【关键修复 1】本机飞控 SYSID_THISMAV = 2
+             而 mavros 的 apm.launch 里 tgt_system 默认写死 1。
+             不改这个，mavros 会一直 connected: False
+             （现象：/mavlink/from 有数据，但 /mavros/* 全空）。
+             参数名是 tgt_system，不是 target_system_id。
+
+         【关键修复 2】fcu_url 波特率
+             飞控走的是 USB CDC(ttyACM0)，波特率实际不生效，
+             但显式写 115200 与常见地面站一致，避免误解。
+
+         用法：
+             roslaunch vision_to_mavros E400_fly.launch
+         验证：
+             rostopic echo /mavros/state      # connected 应为 True
+             rostopic echo /mavros/imu/data   # 有数据说明飞控在推流
+         ========================================================== -->
+
+    <arg name="fcu_url"    default="/dev/ttyACM0:115200" />
+    <arg name="tgt_system" default="2" />
+    <arg name="tgt_component" default="1" />
+
+    <!-- 1. T265 相机驱动 -->
+    <include file="$(find realsense2_camera)/launch/rs_t265.launch"/>
+
+    <!-- 2. MAVROS（ArduPilot / APM） -->
+    <include file="$(find mavros)/launch/apm.launch">
+        <arg name="fcu_url"       value="$(arg fcu_url)" />
+        <arg name="tgt_system"    value="$(arg tgt_system)" />
+        <arg name="tgt_component" value="$(arg tgt_component)" />
+    </include>
+
+    <!-- 3. T265 位姿 -> 飞控（vision_to_mavros 桥接） -->
+    <include file="$(find vision_to_mavros)/launch/t265_tf_to_mavros.launch"/>
+
+</launch>
